@@ -1,5 +1,5 @@
 import streamlit as st
-from backend import chatbot
+from backend import chatbot, get_threads
 from langchain.messages import HumanMessage
 import uuid
 
@@ -35,7 +35,11 @@ def loadChat(thread_id):
     st.session_state['thread_id'] = thread_id
 
     config = {'configurable': {'thread_id': thread_id}}
-    messages = chatbot.get_state(config=config).values['messages']
+    state = chatbot.get_state(config=config)
+
+    messages = []
+    if state.values:
+        messages = state.values['messages']
 
     temp_messages = []
 
@@ -57,7 +61,7 @@ if 'message_history' not in st.session_state:
     st.session_state['message_history'] = []
 
 if 'chat_threads' not in st.session_state:
-    st.session_state['chat_threads'] = []
+    st.session_state['chat_threads'] = get_threads()
 
 if 'thread_id' not in st.session_state:
     thread_id = generateThreadID()
