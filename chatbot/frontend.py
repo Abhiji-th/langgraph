@@ -85,7 +85,7 @@ if st.sidebar.button('New chat'):
     resetChat()
     st.rerun()
 
-for thread_id in st.session_state['chat_threads']:
+for thread_id in st.session_state['chat_threads'][::-1]:
     if st.sidebar.button(thread_id):
         loadChat(thread_id)
         st.rerun()
