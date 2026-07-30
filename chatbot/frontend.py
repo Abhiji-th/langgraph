@@ -1,6 +1,6 @@
 import streamlit as st
 from backend import chatbot, get_threads
-from langchain.messages import HumanMessage
+from langchain.messages import HumanMessage, AIMessage
 import uuid
 
 ############################### Util Functions #############################
@@ -10,10 +10,22 @@ def stream_response(user_message, config):
                 config = config,
                 stream_mode='messages'
     ):
-        if not chunk.content:
+        if not chunk.content or metadata["langgraph_node"] != "chat_node":
             continue
 
-        text = chunk.content[0].get("text", "")
+        if isinstance(chunk.content, str):
+            text = chunk.content
+
+        elif isinstance(chunk.content, list):
+            text = ""
+            for item in chunk.content:
+                if isinstance(item, dict):
+                    text += item.get("text", "")
+                elif isinstance(item, str):
+                    text += item
+
+        else:
+            text = ""
 
         if text:
             yield text
@@ -47,9 +59,22 @@ def loadChat(thread_id):
         if isinstance(msg, HumanMessage):
             role = 'user'
             content = msg.content
-        else:
+        elif isinstance(msg, AIMessage):
             role = 'assistant'
-            content = msg.content[0]['text']
+            if isinstance(msg.content, str):
+                content = msg.content
+
+            elif isinstance(msg.content, list):
+                content = "".join(
+                    block.get("text", "")
+                    for block in msg.content
+                    if isinstance(block, dict)
+                )
+
+            else:
+                content = str(msg.content)
+        else:
+            continue
 
         temp_messages.append({'role': role, 'content': content})
 
