@@ -5,10 +5,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph.message import add_messages
 from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite import SqliteSaver
-import sqlite3
 from langchain_core.tools import tool
 from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_huggingface import HuggingFaceEmbeddings
 from langgraph.prebuilt import ToolNode, tools_condition
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+
+import sqlite3
 import requests
 
 load_dotenv()
@@ -16,6 +21,17 @@ load_dotenv()
 llm = ChatGoogleGenerativeAI(
     model="gemini-3.5-flash-lite"
 )
+
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
+
+loader = PyPDFLoader("Valorant_RAG_Handbook.pdf")
+document = loader.load()
+splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=20)
+chunks = splitter.split_documents(document)
+vector_store = FAISS.from_documents(chunks, embeddings)
+retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":4})
 
 search_tool = DuckDuckGoSearchRun(region="us-en")
 
@@ -44,7 +60,23 @@ def calculator(num1: float, num2: float, operation: str) -> dict:
         return {"error": str(e)}
 
 
-tools = [search_tool, calculator]
+@tool
+def rag_tool(query) -> dict:
+    """
+    Retrieve relevant information from saved PDF
+    """    
+    result = retriever.invoke(query)
+    context = [doc.page_content for doc in result]
+    metadata = [doc.metadata for doc in result]
+
+    return {
+        "query": query,
+        "context": context,
+        "metadata": metadata,
+    }
+
+
+tools = [search_tool, calculator, rag_tool]
 
 llm_with_tools = llm.bind_tools(tools)
 
